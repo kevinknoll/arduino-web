@@ -3,10 +3,12 @@
 #include <Ethernet.h>
 #include <SPI.h>
 boolean reading = false;
+boolean broadcasted = false;
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 byte pins[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
+EthernetClient client;
 EthernetServer server = EthernetServer(80);
 
 void setup() {
@@ -25,10 +27,48 @@ void setup() {
 
   server.begin();
   Serial.println(Ethernet.localIP());
+
+  broadcast();
+}
+
+void broadcast() {
+  /* broadcast our dchp ip to server */
+  if (client.connect("arduino.kevinknoll.com", 80)) {
+    client.print("GET /?ip=");
+    client.print(Ethernet.localIP());
+    client.println(" HTTP/1.1");
+    client.println("Host: arduino.kevinknoll.com");
+    client.println("Connection: close");
+    client.println();
+  } else {
+    Serial.println("connection failed");
+  }
+}
+
+void checkForBroadcast() {
+  // read bytes from broadcast response
+  if (client.available()) {
+    char c = client.read();
+    Serial.print(c);
+  }
+
+  // when broadcast response ends, disconnect
+  if (!client.connected()) {
+    Serial.println();
+    Serial.println("disconnecting.");
+    client.stop();
+
+    // trip broadcasted flag
+    broadcasted = true;
+  }
 }
 
 void loop() {
-  checkForClient();
+  if (broadcasted) {
+    checkForClient();
+  } else {
+    checkForBroadcast();
+  }
 }
 
 void checkForClient() {
